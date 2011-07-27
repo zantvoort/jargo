@@ -145,8 +145,16 @@ final class ComponentConfigurationDeployer implements Deployer {
                                         (ManagedComponentContext<Object>) tmp;
                                 String componentName = ctx.getComponentMetaData().getComponentName();
                                 logger.info("Deploying component '" + componentName + "'.");
+
+                                // Construct static components and perform dependency injection.
                                 registry.activate(ctx);
-                                
+                            }
+
+                            for (ManagedComponentContext tmp : set) {
+                                @SuppressWarnings("unchecked")
+                                ManagedComponentContext<Object> ctx =
+                                        (ManagedComponentContext<Object>) tmp;
+                                String componentName = ctx.getComponentMetaData().getComponentName();
                                 @SuppressWarnings("unchecked")
                                 ComponentConfiguration<Object> configuration =
                                         (ComponentConfiguration)
@@ -160,6 +168,7 @@ final class ComponentConfigurationDeployer implements Deployer {
                                         new ArrayList<ComponentLifecycle<Object>>();
                                 try {
                                     for (ComponentLifecycle<Object> lifecycle : lifecycles) {
+                                        // Execute lifecycle methods at component level.
                                         lifecycle.onCreate(new ComponentFactoryImpl<Object>(
                                                 configuration, registry));
                                         commitLifecycles.add(lifecycle);
