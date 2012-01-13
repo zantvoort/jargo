@@ -48,28 +48,14 @@ final class ObjectFactoryProviders extends
         AbstractProviders<ObjectFactoryProvider> implements 
         ObjectFactoryProvider {
     
-    private final Map<ComponentConfiguration, ObjectFactory> cache;
-    
-    public ObjectFactoryProviders() {
-        cache = Collections.synchronizedMap(
-                new HashMap<ComponentConfiguration, ObjectFactory>());
-    }
-    
     public <T> ObjectFactory<T> getObjectFactory(
             ComponentConfiguration<T> configuration) {
         ObjectFactory<T> objectFactory = null;
-        if (cache.containsKey(configuration)) {
-            @SuppressWarnings("unchecked")
-            ObjectFactory<T> tmp = (ObjectFactory<T>) cache.get(configuration);
-            objectFactory = tmp;
-        } else {
-            for (ObjectFactoryProvider provider : getProviders()) {
-                objectFactory = provider.getObjectFactory(configuration);
-                if (objectFactory != null) {
-                    break;
-                }
+        for (ObjectFactoryProvider provider : getProviders()) {
+            objectFactory = provider.getObjectFactory(configuration);
+            if (objectFactory != null) {    // Result must not be cached.
+                break;
             }
-            cache.put(configuration, objectFactory);
         }
         return objectFactory;
     }
@@ -77,10 +63,5 @@ final class ObjectFactoryProviders extends
     @Override
     public void undeploy(Deployable deployable) throws Exception {
         super.undeploy(deployable);
-        if (deployable instanceof ComponentRegistration) {
-            List<ComponentConfiguration<?>> configurations = 
-                    ((ComponentRegistration) deployable).getComponentConfigurations();
-            cache.keySet().removeAll(configurations);
-        }
     }
 }
