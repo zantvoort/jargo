@@ -41,6 +41,8 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.jargo.deploy.Deployer;
 
 /**
@@ -51,7 +53,7 @@ import org.jargo.deploy.Deployer;
 public abstract class ComponentApplicationContext implements Deployer {
     
     private static class LazyHolder {
-        static final ComponentApplicationContext ctx;
+        static ComponentApplicationContext ctx;
         static {
             try {
                 try {
@@ -136,7 +138,11 @@ public abstract class ComponentApplicationContext implements Deployer {
             ComponentApplicationException {
         try {
             try {
-                return LazyHolder.ctx.resolveInstance();
+                ComponentApplicationContext ctx = LazyHolder.ctx;
+                if (ctx == null) {
+                    throw new ComponentApplicationException("Container shut down.");
+                }
+                return ctx.resolveInstance();
             } catch (ExceptionInInitializerError e) {
                 try {
                     throw e.getException();
@@ -159,7 +165,7 @@ public abstract class ComponentApplicationContext implements Deployer {
     
     /**
      * Subclasses can override this method to have control over which instance
-     * is to be returned by {@link instance}.
+     * is to be returned by {@link #instance}.
      */
     protected ComponentApplicationContext resolveInstance() throws 
             ComponentApplicationException {
@@ -169,8 +175,17 @@ public abstract class ComponentApplicationContext implements Deployer {
     /**
      * Undeploys all components and stops all internal container threads.
      */
-    public abstract void shutdown() throws ComponentApplicationException;
-    
+    public void shutdown() throws ComponentApplicationException {
+        try {
+            shutdownDelegate();
+        } finally {
+            LazyHolder.ctx = null;
+            Runtime.getRuntime().gc();
+        }
+    }
+
+    protected abstract void shutdownDelegate() throws ComponentApplicationException;
+
     /**
      * Returns an immutable list of {@code ComponentFactory} objects for all 
      * registered components.

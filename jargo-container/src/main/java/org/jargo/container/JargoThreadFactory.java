@@ -155,4 +155,8 @@ final class JargoThreadFactory implements ThreadFactory {
         thread.setUncaughtExceptionHandler(getUncaughtExceptionHandler());
         return thread;
     }
+
+    public static synchronized void clear() {
+        factories.clear();
+    }
 }

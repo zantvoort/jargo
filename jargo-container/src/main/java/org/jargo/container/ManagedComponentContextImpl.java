@@ -30,7 +30,6 @@
  */
 package org.jargo.container;
 
-import org.jargo.container.ManagedComponentContext;
 import org.jargo.ComponentMetaData;
 import org.jargo.ComponentReference;
 import org.jargo.ComponentStateException;
@@ -47,12 +46,13 @@ final class ManagedComponentContextImpl<T> implements
     public ManagedComponentContextImpl(ComponentMetaData<T> metaData) {
         this.metaData = metaData;
         this.referenceStack = new ThreadLocal<JargoStack<ComponentReference<T>>>() {
+            @Override
             protected JargoStack<ComponentReference<T>> initialValue() {
                 return new JargoStack<ComponentReference<T>>();
             }
         };
     }
-    
+
     public ComponentMetaData<T> getComponentMetaData() {
         return metaData;
     }

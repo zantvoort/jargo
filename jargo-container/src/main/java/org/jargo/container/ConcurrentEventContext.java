@@ -42,6 +42,7 @@ abstract class ConcurrentEventContext implements EventContext {
     
     public ConcurrentEventContext() {
         this.events = new ThreadLocal<JargoStack<Event>>() {
+            @Override
             protected JargoStack<Event> initialValue() {
                 return new JargoStack<Event>();
             }

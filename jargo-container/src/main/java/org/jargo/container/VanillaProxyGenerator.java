@@ -218,12 +218,13 @@ final class VanillaProxyGenerator<T> implements ProxyGenerator<T> {
         
         public VanillaProxyController() {
             this.local = new ThreadLocal<JargoStack<Boolean>>() {
-                @Override protected JargoStack<Boolean> initialValue() {
+                @Override
+                protected JargoStack<Boolean> initialValue() {
                     return new JargoStack<Boolean>();
                 }
             };
         }
-        
+
         public void attach(boolean noOp) {
             local.get().push(noOp);
         }

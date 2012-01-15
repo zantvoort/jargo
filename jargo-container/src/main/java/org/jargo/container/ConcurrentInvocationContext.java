@@ -43,12 +43,13 @@ abstract class ConcurrentInvocationContext implements
     
     public ConcurrentInvocationContext() {
         this.invocations = new ThreadLocal<JargoStack<Invocation>>() {
+            @Override
             protected JargoStack<Invocation> initialValue() {
                 return new JargoStack<Invocation>();
             }
         };
     }
-    
+
     public void attach(Invocation i) {
         invocations.get().push(i);
     }

@@ -67,7 +67,17 @@ public final class Container extends ComponentApplicationContext {
     private final AtomicBoolean init;
     
     private final List<Deployable> deployables = new ArrayList<Deployable>();
-    
+
+    // Doesn't need to be final, as only one instance exists.
+    private final ThreadLocal<LinkedList<ComponentReference<?>>> callStack = new ThreadLocal<LinkedList<ComponentReference<?>>>() {
+        @Override
+        protected LinkedList<ComponentReference<?>> initialValue() {
+            return new LinkedList<ComponentReference<?>>();
+        }
+    };
+
+    private final ContainerLocalURLRegistration registration = new ContainerLocalURLRegistration();
+
     public Container() {
         this.providers = new ProvidersImpl();
         this.rootDeployer = new RootDeployer();
@@ -112,17 +122,17 @@ public final class Container extends ComponentApplicationContext {
     
     /**
      * Subclasses can override this method to have control over which instance
-     * is to be returned by {@link instance}.
+     * is to be returned by {@link #instance}.
      */
     protected ComponentApplicationContext resolveInstance() {
         if (!init.getAndSet(true)) {
             try {
-                deployables.addAll(getDeployables(ContainerLocalURLRegistration.INSTANCE.getClassLoader()));
+                deployables.addAll(getDeployables(registration.getClassLoader()));
                 for (Deployable deployable : deployables) {
                     logger.finest("Deploying " + deployable.getClass() + ".");
                     deploy(deployable);
                 }
-                deploy(ContainerLocalURLRegistration.INSTANCE);
+                deploy(registration);
             } catch (ComponentApplicationException e) {
                 throw e;
             } catch (Exception e) {
@@ -133,56 +143,58 @@ public final class Container extends ComponentApplicationContext {
     }
 
     @SuppressWarnings("finally")
-    public void shutdown() {
+    public void shutdownDelegate() {
         try {
             try {
                 try {
-                    undeploy(ContainerLocalURLRegistration.INSTANCE);
-                } finally {
-                    Collections.reverse(deployables);
-                    for (Iterator<Deployable> i = deployables.iterator(); i.hasNext();) {
-                        Deployable deployable = i.next();
-                        logger.finest("Undeploying " + deployable.getClass() + ".");
-                        try {
-                            undeploy(deployable);
-                        } finally {
-                            i.remove();
-                            continue;
+                    try {
+                        undeploy(registration);
+                    } finally {
+                        Collections.reverse(deployables);
+                        for (Iterator<Deployable> i = deployables.iterator(); i.hasNext();) {
+                            Deployable deployable = i.next();
+                            logger.finest("Undeploying " + deployable.getClass() + ".");
+                            try {
+                                undeploy(deployable);
+                            } finally {
+                                i.remove();
+                                continue;
+                            }
                         }
                     }
+                } finally {
+                    registry.shutdown();
                 }
+            } catch (ComponentApplicationException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new ComponentApplicationException(e);
             } finally {
-                registry.shutdown();
+                deployables.clear();
             }
-        } catch (ComponentApplicationException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ComponentApplicationException(e);
         } finally {
-            deployables.clear();
+            JargoThreadFactory.clear();
         }
     }
 
-    private static final ThreadLocal<LinkedList<ComponentReference<?>>> callStack = 
-            new ThreadLocal<LinkedList<ComponentReference<?>>>() {
-        protected LinkedList<ComponentReference<?>> initialValue() {
-            return new LinkedList<ComponentReference<?>>();
-        }
-    };
-            
+    static LinkedList<ComponentReference<?>> getCallStack() {
+        Container c = (Container) ComponentApplicationContext.instance();
+        return c.callStack.get();
+    }
+
     static void attach(ComponentReference<?> reference) {
         assert reference != null;
-        callStack.get().addFirst(reference);
+        getCallStack().addFirst(reference);
     }
 
-    static public void detach() {
-        if (callStack.get().removeFirst() == null) {
+    static void detach() {
+        if (getCallStack().removeFirst() == null) {
             assert false;
         }
     }
 
     public List<ComponentReference<?>> referenceStack() {
-        return Collections.unmodifiableList(callStack.get());
+        return Collections.unmodifiableList(getCallStack());
     }
     
     public void setParent(Deployer parent) {

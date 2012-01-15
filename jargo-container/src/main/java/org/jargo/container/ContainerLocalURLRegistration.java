@@ -1,6 +1,5 @@
 package org.jargo.container;
 
-import com.sun.org.apache.bcel.internal.generic.INSTANCEOF;
 import org.jargo.URLRegistration;
 
 import java.net.MalformedURLException;
@@ -12,12 +11,10 @@ import java.util.List;
 
 public class ContainerLocalURLRegistration implements URLRegistration {
 
-    public static final ContainerLocalURLRegistration INSTANCE = new ContainerLocalURLRegistration();
-    
-    private final List<URL> urls; 
+    private final List<URL> urls;
     private final ClassLoader loader;
     
-    private ContainerLocalURLRegistration() {
+    public ContainerLocalURLRegistration() {
         try {
             this.urls = Arrays.asList(new URL[] { new URL("file:.")});
         } catch (MalformedURLException e) {
