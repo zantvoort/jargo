@@ -52,6 +52,8 @@ import org.jargo.ComponentObjectFactory;
  */
 interface ComponentRegistry {
 
+    void shutdown();
+
     Providers getProviders();
     
     void create(ComponentConfiguration<?> configuration);

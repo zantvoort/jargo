@@ -165,6 +165,11 @@ public abstract class ComponentApplicationContext implements Deployer {
             ComponentApplicationException {
         return this;
     }
+
+    /**
+     * Undeploys all components and stops all internal container threads.
+     */
+    public abstract void shutdown() throws ComponentApplicationException;
     
     /**
      * Returns an immutable list of {@code ComponentFactory} objects for all 

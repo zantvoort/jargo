@@ -205,7 +205,13 @@ public final class Main {
                     i.remove();
                 }
                 if (ctx != null) {
-                    ctx.undeploy(new URLRegistrationImpl(undeploy));
+                    try {
+                        ctx.undeploy(new URLRegistrationImpl(undeploy));
+                    } catch (Exception e) {
+                        logger.log(Level.WARNING, "THROW", e);
+                    } finally {
+                        ctx.shutdown();
+                    }
                 }
             } catch (Exception e) {
                 logger.log(Level.WARNING, "THROW", e);

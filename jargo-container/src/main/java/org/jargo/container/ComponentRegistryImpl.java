@@ -33,14 +33,15 @@ package org.jargo.container;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -71,7 +72,10 @@ import org.jargo.InvocationInterceptorFactory;
  * @author Leon van Zantvoort
  */
 final class ComponentRegistryImpl implements ComponentRegistry {
-    
+
+    private final AtomicBoolean shutdown = new AtomicBoolean(false);
+    private final BlockingQueue<Set<Thread>> threadQueue = new ArrayBlockingQueue<Set<Thread>>(1, false);
+
     private final Logger logger;
     
     private final ReadWriteLock lock;
@@ -122,14 +126,15 @@ final class ComponentRegistryImpl implements ComponentRegistry {
         
         this.aliases = new HashMap<String, String>();
         this.overrideAliases = new HashMap<String, String>();
-        
+
+        Set<Thread> backgroundThreads = new HashSet<Thread>();
         final ThreadFactory detectorThreadFactory = JargoThreadFactory.
                 instance("Jargo-StallingReaperDetector");
         Runnable detector = new Runnable() {
             public void run() {
                 try {
                     Object ref = null;
-                    while (true) {
+                    while (!shutdown.get()) {
                         Object tmp = queue.poll();
                         if (ref != null) {
                             if (ref == tmp) {
@@ -145,29 +150,44 @@ final class ComponentRegistryImpl implements ComponentRegistry {
                         Thread.sleep(60000);
                     }
                 } catch (InterruptedException e) {
-                    throw new ComponentApplicationException(e);
+                    if (!shutdown.get()) {
+                        throw new ComponentApplicationException(e);
+                    }
                 } finally {
-                    try {
-                        Thread.sleep(5000);
-                    } catch (InterruptedException e) {
-                        // Ignore.
-                    } finally {
-                        detectorThreadFactory.newThread(this).start();
+                    if (!shutdown.get()) {
+                        try {
+                            Thread.sleep(5000);
+                        } catch (InterruptedException e) {
+                            // Ignore.
+                        } finally {
+                            Set<Thread> backgroundThreads = threadQueue.remove();
+                            try {
+                                if (!shutdown.get()) {
+                                    Thread t = detectorThreadFactory.newThread(this);
+                                    backgroundThreads.add(t);
+                                    t.start();
+                                }
+                            } finally {
+                                threadQueue.offer(backgroundThreads);
+                            }
+                        }
                     }
                 }
             }
         };
-        detectorThreadFactory.newThread(detector).start();
+        Thread detectorThread = detectorThreadFactory.newThread(detector);
+        backgroundThreads.add(detectorThread);
+        detectorThread.start();
 
         int processors = Runtime.getRuntime().availableProcessors();
         final ThreadFactory reaperThreadFactory = JargoThreadFactory.
-                instance(processors == 1 ? "Jargo-ReferenceReaper" : 
+                instance(processors == 1 ? "Jargo-ReferenceReaper" :
                 "Jargo-ConcurrentReferenceReaper");
         for (int i = 0; i < processors; i++) {
             Runnable reaper = new Runnable() {
                 public void run() {
                     try {
-                        while (true) {
+                        while (!shutdown.get()) {
                             WeakComponentReference reference = weakReferences.
                                     remove(queue.remove());
                             assert reference != null;
@@ -191,19 +211,62 @@ final class ComponentRegistryImpl implements ComponentRegistry {
                             }
                         }
                     } catch (InterruptedException e) {
-                        throw new ComponentApplicationException(e);
+                        if (!shutdown.get()) {
+                            throw new ComponentApplicationException(e);
+                        }
                     } finally {
-                        try {
-                            Thread.sleep(5000);
-                        } catch (InterruptedException e) {
-                            // Ignore.
-                        } finally {
-                            reaperThreadFactory.newThread(this).start();
+                        if (!shutdown.get()) {
+                            try {
+                                Thread.sleep(5000);
+                            } catch (InterruptedException e) {
+                                // Ignore.
+                            } finally {
+                                Set<Thread> backgroundThreads = threadQueue.remove();
+                                try {
+                                    if (!shutdown.get()) {
+                                        Thread t = reaperThreadFactory.newThread(this);
+                                        backgroundThreads.add(t);
+                                        t.start();
+                                    }
+                                } finally {
+                                    threadQueue.offer(backgroundThreads);
+                                }
+                            }
                         }
                     }
                 }
             };
-            reaperThreadFactory.newThread(reaper).start();
+            Thread reaperThread = reaperThreadFactory.newThread(reaper);
+            backgroundThreads.add(reaperThread);
+            reaperThread.start();
+            threadQueue.offer(backgroundThreads);
+        }
+    }
+
+    @SuppressWarnings("finally")
+    public void shutdown() {
+        if (!shutdown.getAndSet(true)) {
+            boolean interrupted = false;
+            for (final Thread t : threadQueue.remove()) {
+                try {
+                    AccessController.doPrivileged(
+                            new PrivilegedAction<Object>() {
+                                public Object run() {
+                                    // PERMISSION: java.lang.RuntimePermission modifyThread
+                                    t.interrupt();
+                                    return null;
+                                }
+                            });
+
+                    if (!interrupted) {
+                        t.join(5000);
+                    }
+                } catch (InterruptedException e) {
+                    interrupted = true;
+                } finally {
+                    continue;
+                }
+            }
         }
     }
     

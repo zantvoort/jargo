@@ -125,142 +125,167 @@ final class URLDeployer implements Deployer {
             });
             lock.lock();
             try {
-                List<URL> urls = ((URLRegistration) deployable).getURLs();
-
-                logger.info("Deploying urls: " + urls + ".");
-
-                Map<URL, List<Deployable>> deployableMap = 
-                        new HashMap<URL, List<Deployable>>();
-                for (final URL url : urls) {
-                    final ComponentUnit unit;
-                    if (unitMap.containsKey(url)) {
-                        unit = unitMap.get(url);
-                    } else {
-                        ClassLoader loader = providers.getClassLoaderProvider().
-                                getClassLoader(url);
-                        Destroyer destroyer = new Destroyer();
-                        unit = new ComponentUnitImpl(url, loader, destroyer);
-                        unitMap.put(url, unit);
-                        unitDestroyerMap.put(url, destroyer);
+                if (deployable instanceof ContainerLocalURLRegistration) {
+                    logger.info("Deploying container local components.");
+                    ContainerLocalURLRegistration c = (ContainerLocalURLRegistration) deployable;
+                    URL url = c.getURLs().get(0);
+                    Destroyer destroyer = new Destroyer();
+                    ComponentUnit unit = new ComponentUnitImpl(url, c.getClassLoader(), destroyer);
+                    unitMap.put(url, unit);
+                    unitDestroyerMap.put(url, destroyer);
+                    List<ComponentAlias> aliases = providers.
+                            getComponentAliasProvider().
+                            getComponentAliases(unit);
+                    aliasMap.put(url, aliases);
+                    if (!aliases.isEmpty()) {
+                        parent.deploy(new ComponentAliasDeployable(aliases));
                     }
-                    AccessController.doPrivileged(
-                            new PrivilegedAction<Object>() {
-                        public Object run() {
-                            // PERMISSION: java.lang.RuntimePermission setContextClassLoader
-                            Thread.currentThread().setContextClassLoader(unit.getClassLoader());
-                            return null;
+                    List<ComponentConfiguration<?>> configurations = providers.
+                            getComponentConfigurationProvider().
+                            getComponentConfigurations(unit);
+                    configurationMap.put(url, configurations);
+                    if (!configurations.isEmpty()) {
+                        parent.deploy(new ComponentRegistrationImpl(configurations));
+                    }
+                    logger.info("Successfully deployed container local components.");
+                } else {
+                    List<URL> urls = ((URLRegistration) deployable).getURLs();
+
+                    logger.info("Deploying urls: " + urls + ".");
+
+                    Map<URL, List<Deployable>> deployableMap =
+                            new HashMap<URL, List<Deployable>>();
+                    for (final URL url : urls) {
+                        final ComponentUnit unit;
+                        if (unitMap.containsKey(url)) {
+                            unit = unitMap.get(url);
+                        } else {
+                            ClassLoader loader = providers.getClassLoaderProvider().
+                                    getClassLoader(url);
+                            Destroyer destroyer = new Destroyer();
+                            unit = new ComponentUnitImpl(url, loader, destroyer);
+                            unitMap.put(url, unit);
+                            unitDestroyerMap.put(url, destroyer);
                         }
-                    });
-                    // Make sure that deployers are deployed first.
-                    // PENDING: add sequencing / dependencies
-                    List<Deployable> deployableList = getDeployables(unit);
-                    List<Deployable> deployedList = new ArrayList<Deployable>();
-                    for (Iterator<Deployable> i = deployableList.iterator(); i.hasNext();) {
-                        Deployable d = i.next();
-                        if (d instanceof Deployer) {
-                            boolean commit = false;
-                            try {
-                                parent.deploy(d);
-                                deployedList.add(d);
-                                commit = true;
-                            } finally {
-                                if (!commit) {
-                                    for (Deployable deployed : deployedList) {
-                                        try {
-                                            undeploy(deployed);
-                                        } finally {
-                                            continue;
-                                        }
-                                    }
-                                }
+                        AccessController.doPrivileged(
+                                new PrivilegedAction<Object>() {
+                            public Object run() {
+                                // PERMISSION: java.lang.RuntimePermission setContextClassLoader
+                                Thread.currentThread().setContextClassLoader(unit.getClassLoader());
+                                return null;
                             }
-                            i.remove();
-                        }
-                    }
-                    deployableMap.put(url, deployableList);
-                }
-                List<ComponentConfiguration<?>> configurationList = 
-                        new ArrayList<ComponentConfiguration<?>>();
-                List<ComponentAlias> aliasList = 
-                        new ArrayList<ComponentAlias>();
-                for (URL url : urls) {
-                    try {
+                        });
+                        // Make sure that deployers are deployed first.
+                        // PENDING: add sequencing / dependencies
+                        List<Deployable> deployableList = getDeployables(unit);
                         List<Deployable> deployedList = new ArrayList<Deployable>();
-                        for (Deployable d : deployableMap.get(url)) {
-                            boolean commit = false;
-                            try {
-                                parent.deploy(d);
-                                deployedList.add(d);
-                                commit = true;
-                            } finally {
-                                if (!commit) {
-                                    for (Deployable deployed : deployedList) {
-                                        try {
-                                            undeploy(deployed);
-                                        } finally {
-                                            continue;
+                        for (Iterator<Deployable> i = deployableList.iterator(); i.hasNext();) {
+                            Deployable d = i.next();
+                            if (d instanceof Deployer) {
+                                boolean commit = false;
+                                try {
+                                    parent.deploy(d);
+                                    deployedList.add(d);
+                                    commit = true;
+                                } finally {
+                                    if (!commit) {
+                                        for (Deployable deployed : deployedList) {
+                                            try {
+                                                undeploy(deployed);
+                                            } finally {
+                                                continue;
+                                            }
                                         }
                                     }
                                 }
-                            }
-                        }
-
-                        ComponentUnit unit = unitMap.get(url);
-                        assert unit != null;
-
-                        ComponentAliasProvider aliasProvider = providers.
-                                getComponentAliasProvider();
-                        List<ComponentAlias> tmpAliases = 
-                                aliasProvider.getComponentAliases(unit);
-                        aliasList.addAll(tmpAliases);
-                        aliasMap.put(url, tmpAliases);
-
-                        ComponentConfigurationProvider configurationProvider = providers.
-                                getComponentConfigurationProvider();
-                        List<ComponentConfiguration<?>> tmpConfigurations = 
-                                new ArrayList<ComponentConfiguration<?>>(configurationProvider.
-                                getComponentConfigurations(unit));
-                        for (Iterator i = tmpConfigurations.iterator(); i.hasNext();) {
-                            if (configurationList.contains(i.next())) {
-                                // Remove duplicates.
                                 i.remove();
                             }
                         }
-                        configurationList.addAll(tmpConfigurations);
-                        configurationMap.put(url, tmpConfigurations);
-                    } catch (Exception e) {
-                        logger.warning("An exception is caught during " +
-                                "deployment of the following url: '" + url + 
-                                "'. Deployment of this unit is rolled back" +
-                                (urls.size() > 1 ? ": " + urls : "") + ".");
-                        throw e;
+                        deployableMap.put(url, deployableList);
                     }
-                }
-                if (!aliasList.isEmpty()) {
-                    boolean commit = false;
-                    try {
-                        parent.deploy(new ComponentAliasDeployable(
-                                aliasList));
-                        commit = true;
-                    } finally {
-                        if (!commit) {
-                            aliasMap.keySet().remove(urls);
+                    List<ComponentConfiguration<?>> configurationList =
+                            new ArrayList<ComponentConfiguration<?>>();
+                    List<ComponentAlias> aliasList =
+                            new ArrayList<ComponentAlias>();
+                    for (URL url : urls) {
+                        try {
+                            List<Deployable> deployedList = new ArrayList<Deployable>();
+                            for (Deployable d : deployableMap.get(url)) {
+                                boolean commit = false;
+                                try {
+                                    parent.deploy(d);
+                                    deployedList.add(d);
+                                    commit = true;
+                                } finally {
+                                    if (!commit) {
+                                        for (Deployable deployed : deployedList) {
+                                            try {
+                                                undeploy(deployed);
+                                            } finally {
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            ComponentUnit unit = unitMap.get(url);
+                            assert unit != null;
+
+                            ComponentAliasProvider aliasProvider = providers.
+                                    getComponentAliasProvider();
+                            List<ComponentAlias> tmpAliases =
+                                    aliasProvider.getComponentAliases(unit);
+                            aliasList.addAll(tmpAliases);
+                            aliasMap.put(url, tmpAliases);
+
+                            ComponentConfigurationProvider configurationProvider = providers.
+                                    getComponentConfigurationProvider();
+                            List<ComponentConfiguration<?>> tmpConfigurations =
+                                    new ArrayList<ComponentConfiguration<?>>(configurationProvider.
+                                    getComponentConfigurations(unit));
+                            for (Iterator i = tmpConfigurations.iterator(); i.hasNext();) {
+                                if (configurationList.contains(i.next())) {
+                                    // Remove duplicates.
+                                    i.remove();
+                                }
+                            }
+                            configurationList.addAll(tmpConfigurations);
+                            configurationMap.put(url, tmpConfigurations);
+                        } catch (Exception e) {
+                            logger.warning("An exception is caught during " +
+                                    "deployment of the following url: '" + url +
+                                    "'. Deployment of this unit is rolled back" +
+                                    (urls.size() > 1 ? ": " + urls : "") + ".");
+                            throw e;
                         }
                     }
-                }
-                if (!configurationList.isEmpty()) {
-                    boolean commit = false;
-                    try {
-                        parent.deploy(new ComponentRegistrationImpl(
-                                configurationList));
-                        commit = true;
-                    } finally {
-                        if (!commit) {
-                            configurationMap.keySet().remove(urls);
+                    if (!aliasList.isEmpty()) {
+                        boolean commit = false;
+                        try {
+                            parent.deploy(new ComponentAliasDeployable(
+                                    aliasList));
+                            commit = true;
+                        } finally {
+                            if (!commit) {
+                                aliasMap.keySet().remove(urls);
+                            }
                         }
                     }
+                    if (!configurationList.isEmpty()) {
+                        boolean commit = false;
+                        try {
+                            parent.deploy(new ComponentRegistrationImpl(
+                                    configurationList));
+                            commit = true;
+                        } finally {
+                            if (!commit) {
+                                configurationMap.keySet().remove(urls);
+                            }
+                        }
+                    }
+                    logger.info("Successfully deployed urls: " + urls + ".");
                 }
-                logger.info("Successfully deployed urls: " + urls + ".");
             } finally {
                 lock.unlock();
                 AccessController.doPrivileged(
@@ -297,8 +322,12 @@ final class URLDeployer implements Deployer {
             lock.lock();
             try {
                 List<URL> urls = ((URLRegistration) deployable).getURLs();
-                logger.info("Undeploying urls: " + urls + ".");
-                List<ComponentConfiguration<?>> configurationList = 
+                if (deployable instanceof ContainerLocalURLRegistration) {
+                    logger.info("Undeploying container local components.");
+                } else {
+                    logger.info("Undeploying urls: " + urls + ".");
+                }
+                List<ComponentConfiguration<?>> configurationList =
                         new ArrayList<ComponentConfiguration<?>>();
                 List<ComponentAlias> aliasList = 
                         new ArrayList<ComponentAlias>();
@@ -344,7 +373,11 @@ final class URLDeployer implements Deployer {
                         }
                     }
                 }
-                logger.info("Successfully undeployed urls: " + urls + ".");
+                if (deployable instanceof ContainerLocalURLRegistration) {
+                    logger.info("Successfully undeployed container local components.");
+                } else {
+                    logger.info("Successfully undeployed urls: " + urls + ".");
+                }
             } finally {
                 lock.unlock();
                 AccessController.doPrivileged(

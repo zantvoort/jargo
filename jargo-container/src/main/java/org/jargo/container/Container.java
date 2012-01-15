@@ -38,12 +38,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -70,6 +65,8 @@ public final class Container extends ComponentApplicationContext {
     
     private final Logger logger;
     private final AtomicBoolean init;
+    
+    private final List<Deployable> deployables = new ArrayList<Deployable>();
     
     public Container() {
         this.providers = new ProvidersImpl();
@@ -120,42 +117,52 @@ public final class Container extends ComponentApplicationContext {
     protected ComponentApplicationContext resolveInstance() {
         if (!init.getAndSet(true)) {
             try {
-                ClassLoader loader = AccessController.doPrivileged(
-                        new PrivilegedAction<ClassLoader>() {
-                    public ClassLoader run() {
-                        // PERMISSION: java.lang.RuntimePermission getClassLoader
-                        return Container.class.getClassLoader();
-                    }
-                });
-                for (Deployable deployable : getDeployables(loader)) {
+                deployables.addAll(getDeployables(ContainerLocalURLRegistration.INSTANCE.getClassLoader()));
+                for (Deployable deployable : deployables) {
                     logger.finest("Deploying " + deployable.getClass() + ".");
                     deploy(deployable);
                 }
-
-                ComponentUnit unit = new ComponentUnitImpl(new URL("file:."), 
-                        loader, new Destroyer());
-                List<ComponentAlias> aliases = providers.
-                        getComponentAliasProvider().
-                        getComponentAliases(unit);
-                if (!aliases.isEmpty()) {
-                    deploy(new ComponentAliasDeployable(aliases));
-                }
-                List<ComponentConfiguration<?>> configurations = providers.
-                        getComponentConfigurationProvider().
-                        getComponentConfigurations(unit);
-                if (!configurations.isEmpty()) {
-                    deploy(new ComponentRegistrationImpl(configurations));
-                }
+                deploy(ContainerLocalURLRegistration.INSTANCE);
             } catch (ComponentApplicationException e) {
                 throw e;
             } catch (Exception e) {
                 throw new ComponentApplicationException(e);
             }
         }
-        
         return this;
     }
-    
+
+    @SuppressWarnings("finally")
+    public void shutdown() {
+        try {
+            try {
+                try {
+                    undeploy(ContainerLocalURLRegistration.INSTANCE);
+                } finally {
+                    Collections.reverse(deployables);
+                    for (Iterator<Deployable> i = deployables.iterator(); i.hasNext();) {
+                        Deployable deployable = i.next();
+                        logger.finest("Undeploying " + deployable.getClass() + ".");
+                        try {
+                            undeploy(deployable);
+                        } finally {
+                            i.remove();
+                            continue;
+                        }
+                    }
+                }
+            } finally {
+                registry.shutdown();
+            }
+        } catch (ComponentApplicationException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ComponentApplicationException(e);
+        } finally {
+            deployables.clear();
+        }
+    }
+
     private static final ThreadLocal<LinkedList<ComponentReference<?>>> callStack = 
             new ThreadLocal<LinkedList<ComponentReference<?>>>() {
         protected LinkedList<ComponentReference<?>> initialValue() {
