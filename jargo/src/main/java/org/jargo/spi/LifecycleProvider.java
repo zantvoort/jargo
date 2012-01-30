@@ -40,7 +40,15 @@ import org.jargo.Lifecycle;
  * @author Leon van Zantvoort
  */
 public interface LifecycleProvider extends Provider {
-    
+
+    /**
+     *
+     * @param configuration
+     * @param executor
+     * @param vanilla {@code true} if component is vanilla. The destroy method will not be executed for vanilla
+     * components if garbage collected.
+     * @return
+     */
     List<Lifecycle> getLifecycles(ComponentConfiguration<?> configuration, 
-            Executor executor);
+            Executor executor, boolean vanilla);
 }

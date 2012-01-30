@@ -313,7 +313,7 @@ final class ComponentObjectImpl<T> implements ComponentObject<T> {
             lifecycles.addAll(providers.getLifecycleProvider().
                     getLifecycles(configuration, 
                     registry.getExecutorHandle(configuration).
-                    getExecutor()));
+                    getExecutor(), metaData.isVanilla()));
             onCreateInterceptors.addAll(getOnCreateInterceptors());
             onDestroyInterceptors.addAll(getOnDestroyInterceptors());
             

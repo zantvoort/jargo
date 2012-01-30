@@ -58,13 +58,13 @@ final class LifecycleProviders extends
     }
     
     public List<Lifecycle> getLifecycles(ComponentConfiguration configuration,
-            Executor executor) {
+            Executor executor, boolean vanilla) {
         List<Lifecycle> lifecycles = cache.get(configuration);
         if (lifecycles == null) {
             lifecycles = new ArrayList<Lifecycle>();
             for (LifecycleProvider provider : getProviders()) {
                 for (Lifecycle lifecycle : provider.getLifecycles(configuration, 
-                        executor)) {
+                        executor, vanilla)) {
                     lifecycles.add(new Lifecycles(lifecycle));
                 }
             }
