@@ -306,6 +306,10 @@ final class ComponentObjectImpl<T> implements ComponentObject<T> {
                         instance(interceptors, concurrentInvocations, ctx));
             }
             invocations.put(null, concurrentInvocations);
+
+            // Note that for vanilla components, the de Lifecycle.onDestroy method is only invoked when the component is
+            // destroyed explicitly. Vanilla components that are claimed by the garbage collector are not destroyed by
+            // these lifecycle implementations.
             lifecycles.addAll(providers.getLifecycleProvider().
                     getLifecycles(configuration, 
                     registry.getExecutorHandle(configuration).

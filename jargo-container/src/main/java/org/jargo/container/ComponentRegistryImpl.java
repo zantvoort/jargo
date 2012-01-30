@@ -317,7 +317,7 @@ final class ComponentRegistryImpl implements ComponentRegistry {
                         (List<ComponentLifecycle>) (List<?>) providers.
                         getComponentLifecycleProvider().getComponentLifecycles(
                         configuration, executorHandle.getExecutor());
-                        
+
                 componentConfigurations.put(componentName, configuration);
                 componentObjectFactories.put(configuration, factory);
 
