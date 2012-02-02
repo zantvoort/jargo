@@ -104,6 +104,8 @@ final class ComponentRegistryImpl implements ComponentRegistry {
     private final Map<String, String> aliases;
     private final Map<String, String> overrideAliases;
     
+    private final Map<Class<?>, List<ComponentFactory<Object>>> typeCache;  // TODO Cache can be optimized.
+    
     public ComponentRegistryImpl(Providers providers) {
         this.providers = providers;
         this.logger = Logger.getLogger(getClass().getName());
@@ -126,6 +128,8 @@ final class ComponentRegistryImpl implements ComponentRegistry {
         
         this.aliases = new HashMap<String, String>();
         this.overrideAliases = new HashMap<String, String>();
+
+        this.typeCache = new HashMap<Class<?>, List<ComponentFactory<Object>>>();
 
         Set<Thread> backgroundThreads = new HashSet<Thread>();
         final ThreadFactory detectorThreadFactory = JargoThreadFactory.
@@ -340,6 +344,7 @@ final class ComponentRegistryImpl implements ComponentRegistry {
                         proxy, providers.getMetaDataProvider().
                         getMetaData(configuration));
                 componentMetaData.put(configuration, metaData);
+                typeCache.clear();
             } finally {
                 writeLock.unlock();
             }
@@ -572,6 +577,7 @@ final class ComponentRegistryImpl implements ComponentRegistry {
             invocationFactories.remove(configuration);
             componentLifecycles.remove(configuration);
             componentMetaData.remove(configuration);
+            typeCache.clear();
             componentExceptionHandlers.remove(configuration);
             
             componentConfigurations.remove(componentName);
@@ -680,41 +686,49 @@ final class ComponentRegistryImpl implements ComponentRegistry {
             readLock.unlock();
         }
     }
-    
+
     public <T> List<ComponentFactory<? extends T>> list(Class<T> type) {
         Lock readLock = lock.readLock();
         readLock.lock();
         try {
-            List<ComponentFactory<? extends T>> list = null;
-            for (Map.Entry<ComponentConfiguration, ComponentMetaData> e : 
-                    componentMetaData.entrySet()) {
-                ComponentConfiguration<?> configuration = e.getKey();
-                ComponentMetaData<?> metaData = e.getValue();
-                final List<Class<?>> types;
-                if (metaData.isVanilla()) {
-                    types = new ArrayList<Class<?>>(metaData.getInterfaces());
-                    types.add(metaData.getType());
-                } else {
-                    types = metaData.getInterfaces();
-                }
-                for (Class<?> t : types) {
-                    if (type.isAssignableFrom(t)) {
-                        @SuppressWarnings("unchecked")
-                        ComponentConfiguration<T> cfg = 
-                                (ComponentConfiguration<T>) configuration;
-                        ComponentFactory<T> factory = 
-                                new ComponentFactoryImpl<T>(cfg, this);
-                        if (list == null) {
-                            list = new ArrayList<ComponentFactory<? extends T>>();
+            List<ComponentFactory<Object>> list = null;
+            if (typeCache.containsKey(type)) {
+                list = typeCache.get(type);
+            } else {
+                for (Map.Entry<ComponentConfiguration, ComponentMetaData> e :
+                        componentMetaData.entrySet()) {
+                    ComponentConfiguration<?> configuration = e.getKey();
+                    ComponentMetaData<?> metaData = e.getValue();
+                    final List<Class<?>> types;
+                    if (metaData.isVanilla()) {
+                        types = new ArrayList<Class<?>>(metaData.getInterfaces());
+                        types.add(metaData.getType());
+                    } else {
+                        types = metaData.getInterfaces();
+                    }
+                    for (Class<?> t : types) {
+                        if (type.isAssignableFrom(t)) {
+                            @SuppressWarnings("unchecked")
+                            ComponentConfiguration<Object> cfg =
+                                    (ComponentConfiguration<Object>) configuration;
+                            ComponentFactory<Object> factory =
+                                    new ComponentFactoryImpl<Object>(cfg, this);
+                            if (list == null) {
+                                list = new ArrayList<ComponentFactory<Object>>();
+                            }
+                            list.add(factory);
+                            break;
                         }
-                        list.add(factory);
-                        break;
                     }
                 }
+                typeCache.put(type, list);
             }
-            return list == null ? 
+            @SuppressWarnings("unchecked")
+            List<ComponentFactory<? extends T>> tmp = (List<ComponentFactory<? extends T>>) (list == null ?
                     Collections.<ComponentFactory<? extends T>>emptyList() :
-                    Collections.unmodifiableList(list);
+                    Collections.unmodifiableList(list));
+            return tmp;
+
         } finally {
             readLock.unlock();
         }
