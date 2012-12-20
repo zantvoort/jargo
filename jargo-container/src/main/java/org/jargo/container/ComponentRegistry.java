@@ -30,22 +30,9 @@
  */
 package org.jargo.container;
 
-import org.jargo.container.ManagedComponentContext;
+import org.jargo.*;
+
 import java.util.List;
-import org.jargo.ComponentAlias;
-import org.jargo.ComponentNotFoundException;
-import org.jargo.ComponentReference;
-import org.jargo.EventFactory;
-import org.jargo.ExecutorHandle;
-import org.jargo.InvocationFactory;
-import org.jargo.ComponentConfiguration;
-import org.jargo.ComponentCreationException;
-import org.jargo.ComponentExceptionHandler;
-import org.jargo.ComponentFactory;
-import org.jargo.ComponentLifecycle;
-import org.jargo.ComponentMetaData;
-import org.jargo.ComponentNotActiveException;
-import org.jargo.ComponentObjectFactory;
 
 /**
  * @author Leon van Zantvoort
@@ -73,19 +60,16 @@ interface ComponentRegistry {
     
     boolean exists(String componentName, boolean useAlias);
     
-    ComponentConfiguration<?> getComponentConfigurationById(String componentId)
+    ComponentConfiguration<?> getComponentConfiguration(String componentName) 
             throws ComponentNotFoundException;
     
-    List<ComponentFactory<?>> list(String componentName) throws
+    ComponentFactory<?> lookup(String componentName) throws 
             ComponentNotFoundException;
-
-    <T> List<ComponentFactory<? extends T>> list(String componentName, Class<T> type) throws
-            ComponentNotFoundException;
-
-    <T> List<ComponentFactory<? extends T>> list(Class<T> type);
     
     List<ComponentFactory<?>> list();
-
+    
+    <T> List<ComponentFactory<? extends T>> list(Class<T> type);
+    
     <T> ComponentReference<T> createReference(
             ComponentConfiguration<T> configuration,
             Object info) throws ComponentCreationException, 

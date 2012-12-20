@@ -57,11 +57,6 @@ public interface ComponentConfiguration<T> {
      * zero-lenght string.
      */
     String getComponentName();
-
-    /**
-     * Returns {@code true} if component name needs to be unique.
-     */
-    boolean isUnique();
     
     /**
      * Returns the unit of this component.

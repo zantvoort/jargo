@@ -35,6 +35,7 @@ import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.net.URLConnection;
 import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.*;
@@ -42,12 +43,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
-
+import org.jargo.ComponentAlias;
 import org.jargo.ComponentApplicationContext;
 import org.jargo.ComponentApplicationException;
+import org.jargo.ComponentConfiguration;
 import org.jargo.ComponentFactory;
 import org.jargo.ComponentNotFoundException;
 import org.jargo.ComponentReference;
+import org.jargo.ComponentUnit;
 import org.jargo.deploy.Deployer;
 import org.jargo.deploy.Deployable;
 
@@ -198,24 +201,23 @@ public final class Container extends ComponentApplicationContext {
         // Do nothing.
     }
     
+    public ComponentFactory<?> getComponentFactory(String componentName) throws
+            ComponentNotFoundException {
+        return registry.lookup(componentName);
+    }
+    
+    public boolean exists(String componentName) {
+        return registry.exists(componentName, true);
+    }
+
     public List<ComponentFactory<?>> getComponentFactories() {
         return registry.list();
     }
     
-    public List<ComponentFactory<?>> getComponentFactoriesForName(String componentName) throws
-            ComponentNotFoundException {
-        return registry.list(componentName);
-    }
-
     public <T> List<ComponentFactory<? extends T>> getComponentFactoriesForType(Class<T> type) {
         return registry.list(type);
     }
     
-    public <T> List<ComponentFactory<? extends T>>
-            getComponentFactoriesForNameAndType(String componentName, Class<T> type) {
-        return registry.list(componentName, type);
-    }
-
     public void deploy(Deployable deployable) throws Exception {
         rootDeployer.deploy(deployable);
     }

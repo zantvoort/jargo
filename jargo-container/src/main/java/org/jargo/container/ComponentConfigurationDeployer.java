@@ -30,55 +30,32 @@
  */
 package org.jargo.container;
 
-import static java.util.logging.Level.*;
+import org.jargo.*;
+import org.jargo.deploy.Deployable;
+import org.jargo.deploy.Deployer;
+
 import java.lang.reflect.Method;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.logging.Logger;
-import org.jargo.ComponentApplicationException;
-import org.jargo.ComponentContext;
-import org.jargo.ComponentException;
-import org.jargo.Event;
-import org.jargo.EventFactory;
-import org.jargo.deploy.Deployer;
-import org.jargo.deploy.Deployable;
-import org.jargo.ComponentConfiguration;
-import org.jargo.ComponentLifecycle;
-import org.jargo.ComponentRegistration;
-import org.jargo.EventInterceptorFactory;
-import org.jargo.InvocationFactory;
-import org.jargo.InvocationInterceptorFactory;
+
+import static java.util.logging.Level.FINEST;
+import static java.util.logging.Level.WARNING;
 
 /**
  * @author Leon van Zantvoort
  */
 final class ComponentConfigurationDeployer implements Deployer {
-
+    
     private final Logger logger;
     private final ComponentRegistry registry;
     private final Lock lock;
     private final Providers providers;
     private final Map<String, Set<String>> reverseDependencyMap;
-
+    
     public ComponentConfigurationDeployer(ComponentRegistry registry, Lock lock) {
         this.logger = Logger.getLogger(getClass().getName());
         this.registry = registry;
@@ -100,7 +77,7 @@ final class ComponentConfigurationDeployer implements Deployer {
             
             final List<ManagedComponentContext<Object>> createdCtx =
                     Collections.synchronizedList(
-                            new ArrayList<ManagedComponentContext<Object>>());
+                    new ArrayList<ManagedComponentContext<Object>>());
             boolean commit = false;
             lock.lock();
             try {

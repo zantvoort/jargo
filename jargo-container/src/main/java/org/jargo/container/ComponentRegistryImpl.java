@@ -38,8 +38,10 @@ import java.security.PrivilegedAction;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -80,7 +82,7 @@ final class ComponentRegistryImpl implements ComponentRegistry {
     
     private final Providers providers;
     
-    private final Map<String, List<ComponentConfiguration<?>>> componentConfigurations;
+    private final Map<String, ComponentConfiguration> componentConfigurations;
     
     /**
      * Holds the component context of activated components.
@@ -110,7 +112,7 @@ final class ComponentRegistryImpl implements ComponentRegistry {
         
         // JCC-4: Fairness policy cannot be used with JSE5, it will result in a deadlock.
         this.lock = new ReentrantReadWriteLock(false);
-        this.componentConfigurations = new HashMap<String, List<ComponentConfiguration<?>>>();
+        this.componentConfigurations = new HashMap<String, ComponentConfiguration>();
         this.componentContexts = new HashMap<ComponentConfiguration, ManagedComponentContext>();
         this.componentObjectFactories = new HashMap<ComponentConfiguration, ComponentObjectFactory>();
         this.eventFactories = new HashMap<ComponentConfiguration, EventFactory>();
@@ -279,11 +281,11 @@ final class ComponentRegistryImpl implements ComponentRegistry {
             Lock writeLock = lock.writeLock();
             writeLock.lock();
             try {
-                if (configuration.isUnique() && componentConfigurations.containsKey(componentName)) {
+                if (componentConfigurations.containsKey(componentName)) {
                     throw new ComponentException(componentName,
                             "Already exists.");
                 }
-                if (configuration.isUnique() && aliases.containsKey(componentName)) {
+                if (aliases.containsKey(componentName)) {
                     throw new ComponentException(componentName,
                             "Alias already exists.");
                 }
@@ -320,12 +322,7 @@ final class ComponentRegistryImpl implements ComponentRegistry {
                         getComponentLifecycleProvider().getComponentLifecycles(
                         configuration, executorHandle.getExecutor());
 
-                List<ComponentConfiguration<?>> configurations = componentConfigurations.get(componentName);
-                if (configuration == null) {
-                    configurations = new ArrayList<ComponentConfiguration<?>>();
-                    componentConfigurations.put(componentName, configurations);
-                }
-                configurations.add(configuration);
+                componentConfigurations.put(componentName, configuration);
                 componentObjectFactories.put(configuration, factory);
 
                 eventFactories.put(configuration, eventFactory);
@@ -342,9 +339,7 @@ final class ComponentRegistryImpl implements ComponentRegistry {
                     // being garbage collected.
                     references.put(componentName, new HashSet<WeakComponentReference>());
                 }
-
-                // PENDING: Generate id
-                ComponentMetaData metaData = new ComponentMetaDataImpl("PENDING",
+                ComponentMetaData metaData = new ComponentMetaDataImpl(
                         configuration, interfaces, vanilla, factory.isStatic(), 
                         proxy, providers.getMetaDataProvider().
                         getMetaData(configuration));
@@ -534,9 +529,8 @@ final class ComponentRegistryImpl implements ComponentRegistry {
                     configuration.getComponentName(), e);
         }
     }
-
-    // PENDING: Change signature into configuration?
-    PENDING public void destroy(String componentName) {
+    
+    public void destroy(String componentName) {
         Set<WeakComponentReference> refs = null;
         
         ManagedComponentContext<Object> ctx = null;
@@ -680,35 +674,12 @@ final class ComponentRegistryImpl implements ComponentRegistry {
         readLock.lock();
         try {
             List<ComponentFactory<?>> list = new ArrayList<ComponentFactory<?>>();
-            for (List<ComponentConfiguration<?>> configurations : componentConfigurations.values()) {
-                for (ComponentConfiguration<?> configuration : configurations) {
-                    @SuppressWarnings("unchecked")
-                    ComponentConfiguration<Object> cfg = (ComponentConfiguration<Object>) configuration;
-                    ComponentFactory<?> factory = new ComponentFactoryImpl<Object>(
-                            cfg, this);
-                    list.add(factory);
-                }
-            }
-            return Collections.unmodifiableList(list);
-        } finally {
-            readLock.unlock();
-        }
-    }
-
-    public List<ComponentFactory<?>> list(String componentName) {
-        Lock readLock = lock.readLock();
-        readLock.lock();
-        try {
-            List<ComponentFactory<?>> list = new ArrayList<ComponentFactory<?>>();
-            List<ComponentConfiguration<?>> configurations = componentConfigurations.get(componentName);
-            if (configurations != null) {
-                for (ComponentConfiguration<?> configuration : configurations) {
-                    @SuppressWarnings("unchecked")
-                    ComponentConfiguration<Object> cfg = (ComponentConfiguration<Object>) configuration;
-                    ComponentFactory<?> factory = new ComponentFactoryImpl<Object>(
-                            cfg, this);
-                    list.add(factory);
-                }
+            for (ComponentConfiguration<?> configuration : componentConfigurations.values()) {
+                @SuppressWarnings("unchecked")
+                ComponentConfiguration<Object> cfg = (ComponentConfiguration<Object>) configuration;
+                ComponentFactory<?> factory = new ComponentFactoryImpl<Object>(
+                        cfg, this);
+                list.add(factory);
             }
             return Collections.unmodifiableList(list);
         } finally {
@@ -762,12 +733,21 @@ final class ComponentRegistryImpl implements ComponentRegistry {
             readLock.unlock();
         }
     }
-
-    public <T> List<ComponentFactory<? extends T>> list(String componentName, Class<T> type) {
+    
+    public ComponentFactory<?> lookup(String componentName) {
         Lock readLock = lock.readLock();
         readLock.lock();
         try {
-            return null;
+            String name = getComponentName(componentName);
+            @SuppressWarnings("unchecked")
+            ComponentConfiguration<Object> configuration = 
+                    (ComponentConfiguration<Object>) componentConfigurations.get(name);
+            if (configuration == null) {
+                throw new ComponentNotFoundException(componentName);
+            }
+            ComponentFactory<?> factory = new ComponentFactoryImpl<Object>(
+                    configuration, this);
+            return factory;
         } finally {
             readLock.unlock();
         }
