@@ -73,16 +73,19 @@ interface ComponentRegistry {
     
     boolean exists(String componentName, boolean useAlias);
     
-    ComponentConfiguration<?> getComponentConfiguration(String componentName) 
+    ComponentConfiguration<?> getComponentConfigurationById(String componentId)
             throws ComponentNotFoundException;
     
-    ComponentFactory<?> lookup(String componentName) throws 
+    List<ComponentFactory<?>> list(String componentName) throws
             ComponentNotFoundException;
-    
-    List<ComponentFactory<?>> list();
-    
+
+    <T> List<ComponentFactory<? extends T>> list(String componentName, Class<T> type) throws
+            ComponentNotFoundException;
+
     <T> List<ComponentFactory<? extends T>> list(Class<T> type);
     
+    List<ComponentFactory<?>> list();
+
     <T> ComponentReference<T> createReference(
             ComponentConfiguration<T> configuration,
             Object info) throws ComponentCreationException, 

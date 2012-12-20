@@ -72,13 +72,13 @@ import org.jargo.InvocationInterceptorFactory;
  * @author Leon van Zantvoort
  */
 final class ComponentConfigurationDeployer implements Deployer {
-    
+
     private final Logger logger;
     private final ComponentRegistry registry;
     private final Lock lock;
     private final Providers providers;
     private final Map<String, Set<String>> reverseDependencyMap;
-    
+
     public ComponentConfigurationDeployer(ComponentRegistry registry, Lock lock) {
         this.logger = Logger.getLogger(getClass().getName());
         this.registry = registry;
@@ -100,7 +100,7 @@ final class ComponentConfigurationDeployer implements Deployer {
             
             final List<ManagedComponentContext<Object>> createdCtx =
                     Collections.synchronizedList(
-                    new ArrayList<ManagedComponentContext<Object>>());
+                            new ArrayList<ManagedComponentContext<Object>>());
             boolean commit = false;
             lock.lock();
             try {

@@ -74,7 +74,7 @@ abstract class AbstractProviders<T extends Provider> implements
             this.type = type;
         } else {
             throw new ComponentApplicationException(
-                    "Failed to lookup parameterized type: " + getClass() + ".");
+                    "Failed to list parameterized type: " + getClass() + ".");
         }
     }
     

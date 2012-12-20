@@ -42,18 +42,20 @@ import org.jargo.MetaData;
  *
  * @author Leon van Zantvoort
  */
-final class ComponentMetaDataImpl implements ComponentMetaData {
-    
-    private final ComponentConfiguration<?> configuration;
+final class ComponentMetaDataImpl<T> implements ComponentMetaData<T> {
+
+    private final String componentId;
+    private final ComponentConfiguration<T> configuration;
     private final List<Class<?>> interfaces;
     private final boolean vanilla;
     private final boolean statik;
     private final boolean proxy;
     private final List<MetaData> metaData;
     
-    public ComponentMetaDataImpl(ComponentConfiguration<?> configuration,
-            List<Class<?>> interfaces, boolean vanilla, boolean statik, 
+    public ComponentMetaDataImpl(String componentId, ComponentConfiguration<T> configuration,
+            List<Class<?>> interfaces, boolean vanilla, boolean statik,
             boolean proxy, List<MetaData> metaData) {
+        this.componentId = componentId;
         this.configuration = configuration;
         this.interfaces = Collections.unmodifiableList(
                 new ArrayList<Class<?>>(interfaces));
@@ -62,7 +64,11 @@ final class ComponentMetaDataImpl implements ComponentMetaData {
         this.proxy = proxy;
         this.metaData = Collections.unmodifiableList(
                 new ArrayList<MetaData>(metaData));
-        assert proxy ? true : interfaces.isEmpty();
+        assert proxy || interfaces.isEmpty();
+    }
+
+    public String getComponentId() {
+        return componentId;
     }
 
     public String getDescription() {
@@ -77,7 +83,7 @@ final class ComponentMetaDataImpl implements ComponentMetaData {
         return configuration.getComponentUnit();
     }
     
-    public Class<?> getType() {
+    public Class<T> getType() {
         return configuration.getType();
     }
 
