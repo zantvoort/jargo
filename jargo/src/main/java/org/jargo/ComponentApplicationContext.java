@@ -41,7 +41,6 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.jargo.deploy.Deployer;
 
@@ -193,31 +192,29 @@ public abstract class ComponentApplicationContext implements Deployer {
     public abstract List<ComponentFactory<?>> getComponentFactories();
     
     /**
-     * Returns an immutable list of {@code ComponentFactory} objects for 
-     * component instances that match the specified {@code type}.
-     */
-    public abstract <T> List<ComponentFactory<? extends T>> 
-            getComponentFactoriesForType(Class<T> type);
-    
-    /**
-     * Looks up the {@code ComponentFactory} for the specified 
+     * Looks up the {@code ComponentFactory} for the specified
      * {@code componentName}.
      *
      * @throws ComponentNotFoundException if no component is registered for the
      * specified {@code componentName}.
      */
-    public abstract ComponentFactory<?> getComponentFactory(
+    public abstract List<ComponentFactory<?>> getComponentFactoriesForName(
             String componentName) throws ComponentNotFoundException;
+
+    /**
+     * Returns an immutable list of {@code ComponentFactory} objects for 
+     * component instances that match the specified {@code type}.
+     */
+    public abstract <T> List<ComponentFactory<? extends T>>
+            getComponentFactoriesForType(Class<T> type);
     
     /**
-     * <p>Returns {@code true} if a component exists for the specified
-     * {@code componentName}.</p>
-     *
-     * @param componentName name of the component.
-     * @return {@code true} if component exists, or {@code false} otherwise.
+     * Returns an immutable list of {@code ComponentFactory} objects for component instances that match both the
+     * specified {@code componentName} and {@code type}.
      */
-     public abstract boolean exists(String componentName);
-    
+    public abstract <T> List<ComponentFactory<? extends T>>
+            getComponentFactoriesForNameAndType(String componentName, Class<T> type);
+
     /**
      * Returns the call stack of all references being invoked by the this 
      * thread.

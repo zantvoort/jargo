@@ -39,11 +39,17 @@ import java.util.List;
  */
 public interface ComponentMetaData<T> extends MetaData {
 
+
     /**
-     * Returns the name of the component.
+     * Returns a string that is unique to this configuration within the Jargo container.
+     */
+    String getComponentId();
+
+    /**
+     * Returns the name of the component. Note uniqueness of this name is not guaranteed.
      */
     String getComponentName();
-    
+
     /**
      * Returns the component unit of which this component is part of.
      */
